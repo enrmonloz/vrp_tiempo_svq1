@@ -494,44 +494,43 @@ def _back_button() -> None:
 
 
 def view_location_selector(dataset) -> None:
-    """Pantalla principal de localización con selector de técnica."""
-    _section_title("Localización de Centro de Reparto")
-
+    """Pantalla principal de localización con selector de técnica mejorado."""
     st.markdown(
         "Calcula la ubicación óptima para un nuevo centro de distribución "
         "basándose en la población y coordenadas de los municipios."
     )
 
-    col1, col2 = st.columns([2, 1])
+    # Selector de vista mejorado
+    view_mode = st.radio(
+        "📊 **Selecciona la vista:**",
+        options=["🎯 Solución Única", "📈 Comparar Técnicas"],
+        horizontal=True,
+    )
 
-    with col1:
-        view_mode = st.radio(
-            "Selecciona la vista:",
-            options=["Solución Única", "Comparar Técnicas"],
-            horizontal=True,
-        )
-
-    with col2:
-        if view_mode == "Solución Única":
-            technique = st.selectbox(
-                "Técnica de localización:",
-                options=[
-                    LocationMethod.GRAVITY_CENTER.value,
-                    LocationMethod.MIN_TOTAL_DISTANCE.value,
-                    LocationMethod.MINIMAX.value,
-                    LocationMethod.GEOGRAPHIC_CENTER.value,
-                    LocationMethod.K_MEDIAN.value,
-                ],
-                format_func=lambda x: x.replace("_", " ").title(),
+    if view_mode == "🎯 Solución Única":
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            technique_options = [
+                ("gravity_center", "🌍 Centro de Gravedad"),
+                ("min_total_distance", "📏 Minimizar Distancia Total"),
+                ("minimax", "⚖️ Minimax (Equilibrar distancias)"),
+                ("geographic_center", "🗺️ Centro Geográfico"),
+                ("k_median", "🎲 K-Median (Iterativo)"),
+            ]
+            technique_label = st.selectbox(
+                "🔧 **Técnica de localización:**",
+                options=technique_options,
+                format_func=lambda x: x[1],
+                key="technique_select"
             )
-        else:
-            technique = None
+            technique = technique_label[0]
+    else:
+        technique = None
 
     # Ejecutar solver
     solver = LocationSolver(dataset)
 
-    if view_mode == "Solución Única":
-        # Cuando technique es None esto no se ejecuta
+    if view_mode == "🎯 Solución Única":
         result = solver.solve(LocationMethod(technique))
         render_location_results(dataset, result)
     else:
@@ -713,29 +712,19 @@ def main() -> None:
     st.markdown(
         """
         <div class='industrial-header'>
-            <h1><span class='industrial-tag'>SVQ1</span>VRP por tiempo - Operativa Sevilla</h1>
+            <h1>🚀 Proyecto de Amazon</h1>
             <div class='subtitle'>
-                Asignacion optima de furgonetas y trailers minimizando flota
-                bajo restricciones de jornada efectiva, rango electrico y
-                pausa para comer.
+                Optimización operativa integrada: Localiza el centro de distribución óptimo y asigna rutas inteligentes
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    st.caption("✓ Dataset cargado: 82 municipios | 2 centros logísticos (SVQ1, DQA4)")
 
     if "view" not in st.session_state:
         st.session_state["view"] = "main"
 
-    # Selector del problema a resolver
-    st.markdown("---")
-    problem_selector = st.radio(
-        "**SELECCIONA EL PROBLEMA A RESOLVER:**",
-        options=["Asignación de Rutas (VRP)", "Localización de Centro"],
-        horizontal=True,
-    )
-    st.markdown("---")
-    
     # Cargar dataset (necesario para ambas vistas)
     data_dir = THIS_DIR / "data"
     try:
@@ -747,61 +736,72 @@ def main() -> None:
         st.error(f"Error cargando datos: {exc}")
         st.stop()
     
-    # Router principal: si es Localización, mostrar esa vista y terminar
-    if problem_selector == "Localización de Centro":
-        view_location_selector(dataset)
-        return
-    
-    # --- Resto de la lógica VRP (sin cambios) ---
-    # Panel de configuracion arriba.
-    params = render_config_panel()
-
-    run_col, status_col = st.columns([1, 4])
-    run_button = run_col.button("Resolver VRP", type="primary", use_container_width=True)
-
-    # El dataset ya fue cargado en el selector de problema (arriba)
-
-    for name, pop in params["new_pops"].items():
-        if name in dataset.names:
-            idx = dataset.names.index(name)
-            dataset.poblacion[idx] = int(pop)
-
-    state_key = "vrp_result"
-    if run_button or state_key not in st.session_state:
-        config = build_pipeline_config(params)
-        with st.spinner("Calculando asignacion..."):
-            try:
-                result = run_pipeline(dataset, config)
-            except Exception as exc:
-                st.error(f"No se pudo resolver el VRP: {exc}")
-                st.stop()
-        st.session_state[state_key] = result
-        # Tras ejecutar, regresar a la pantalla principal.
-        st.session_state["view"] = "main"
-    else:
-        result = st.session_state[state_key]
-
-    status_col.caption(
-        f"Estrategia: **{params['solver_strategy'].value}** | "
-        f"Penetracion: **{params['market_pct']:.3f}%** | "
-        f"Jornada: **{params['max_workday_hours']:.2f} h** efectiva | "
-        f"Trailers: **{'ON' if params['trailer_enabled'] else 'OFF'}**"
+    # Selector del problema a resolver mediante pestañas
+    st.divider()
+    tab_vrp, tab_localizacion = st.tabs(
+        ["📦 Asignación de Rutas (VRP)", "📍 Localización de Centro"]
     )
 
-    # Router de pantallas.
-    view = st.session_state.get("view", "main")
-    if view == "main":
-        view_main(result, dataset)
-    elif view == "vehicles":
-        view_vehicles(result)
-    elif view == "dedicated":
-        view_dedicated(result)
-    elif view == "shifts":
-        view_shifts(result)
-    elif view == "stops":
-        view_stops(result)
-    else:
-        view_main(result, dataset)
+    with tab_localizacion:
+        view_location_selector(dataset)
+
+    with tab_vrp:
+        # Panel de configuracion arriba.
+        params = render_config_panel()
+
+        run_col, status_col = st.columns([1, 4])
+        run_button = run_col.button("Resolver VRP", type="primary", use_container_width=True)
+
+        # El dataset ya fue cargado al inicio de main()
+
+        for name, pop in params["new_pops"].items():
+            if name in dataset.names:
+                idx = dataset.names.index(name)
+                dataset.poblacion[idx] = int(pop)
+
+        state_key = "vrp_result"
+        if run_button or state_key not in st.session_state:
+            config = build_pipeline_config(params)
+            with st.spinner("Calculando asignacion..."):
+                try:
+                    result = run_pipeline(dataset, config)
+                except Exception as exc:
+                    st.error(f"No se pudo resolver el VRP: {exc}")
+                    st.stop()
+            st.session_state[state_key] = result
+            # Tras ejecutar, regresar a la pantalla principal.
+            st.session_state["view"] = "main"
+        else:
+            result = st.session_state[state_key]
+
+        status_col.caption(
+            f"Estrategia: **{params['solver_strategy'].value}** | "
+            f"Penetracion: **{params['market_pct']:.3f}%** | "
+            f"Jornada: **{params['max_workday_hours']:.2f} h** efectiva | "
+            f"Trailers: **{'ON' if params['trailer_enabled'] else 'OFF'}**"
+        )
+
+        # Router de pantallas.
+        view = st.session_state.get("view", "main")
+        if view == "main":
+            view_main(result, dataset)
+        elif view == "vehicles":
+            view_vehicles(result)
+        elif view == "dedicated":
+            view_dedicated(result)
+        elif view == "shifts":
+            view_shifts(result)
+        elif view == "stops":
+            view_stops(result)
+        else:
+            view_main(result, dataset)
+    
+    # Footer informativo
+    st.divider()
+    col1, col2, col3 = st.columns(3)
+    col1.caption("🏢 **Centro**: SVQ1, Sevilla")
+    col2.caption("📊 **Versión**: 2.1 Integrado (VRP + Localización)")
+    col3.caption("⚙️ **Motor**: OR-Tools + SciPy Optimize")
 
 
 if __name__ == "__main__":
