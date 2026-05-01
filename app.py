@@ -29,6 +29,8 @@ from src.pipeline import PipelineConfig, run_pipeline
 from src.schedule import ScheduleConfig
 from src.trailer import DEFAULT_BIG_NODES, TrailerConfig
 from src.vrp_solver import SolverStrategy
+from src.location_solver import LocationMethod, LocationSolver
+from src.location_view import render_location_results, render_comparison_view
 
 
 st.set_page_config(
@@ -491,6 +493,51 @@ def _back_button() -> None:
         st.rerun()
 
 
+def view_location_selector(dataset) -> None:
+    """Pantalla principal de localización con selector de técnica."""
+    _section_title("Localización de Centro de Reparto")
+
+    st.markdown(
+        "Calcula la ubicación óptima para un nuevo centro de distribución "
+        "basándose en la población y coordenadas de los municipios."
+    )
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        view_mode = st.radio(
+            "Selecciona la vista:",
+            options=["Solución Única", "Comparar Técnicas"],
+            horizontal=True,
+        )
+
+    with col2:
+        if view_mode == "Solución Única":
+            technique = st.selectbox(
+                "Técnica de localización:",
+                options=[
+                    LocationMethod.GRAVITY_CENTER.value,
+                    LocationMethod.MIN_TOTAL_DISTANCE.value,
+                    LocationMethod.MINIMAX.value,
+                    LocationMethod.GEOGRAPHIC_CENTER.value,
+                    LocationMethod.K_MEDIAN.value,
+                ],
+                format_func=lambda x: x.replace("_", " ").title(),
+            )
+        else:
+            technique = None
+
+    # Ejecutar solver
+    solver = LocationSolver(dataset)
+
+    if view_mode == "Solución Única":
+        # Cuando technique es None esto no se ejecuta
+        result = solver.solve(LocationMethod(technique))
+        render_location_results(dataset, result)
+    else:
+        render_comparison_view(dataset, solver)
+
+
 def view_vehicles(result) -> None:
     _back_button()
     _section_title("Detalle por vehiculo VRP")
@@ -680,13 +727,16 @@ def main() -> None:
     if "view" not in st.session_state:
         st.session_state["view"] = "main"
 
-    # Panel de configuracion arriba.
-    params = render_config_panel()
-
-    run_col, status_col = st.columns([1, 4])
-    run_button = run_col.button("Resolver VRP", type="primary", use_container_width=True)
-
-    # Carga del dataset.
+    # Selector del problema a resolver
+    st.markdown("---")
+    problem_selector = st.radio(
+        "**SELECCIONA EL PROBLEMA A RESOLVER:**",
+        options=["Asignación de Rutas (VRP)", "Localización de Centro"],
+        horizontal=True,
+    )
+    st.markdown("---")
+    
+    # Cargar dataset (necesario para ambas vistas)
     data_dir = THIS_DIR / "data"
     try:
         dataset = _cached_dataset(
@@ -696,6 +746,20 @@ def main() -> None:
     except Exception as exc:
         st.error(f"Error cargando datos: {exc}")
         st.stop()
+    
+    # Router principal: si es Localización, mostrar esa vista y terminar
+    if problem_selector == "Localización de Centro":
+        view_location_selector(dataset)
+        return
+    
+    # --- Resto de la lógica VRP (sin cambios) ---
+    # Panel de configuracion arriba.
+    params = render_config_panel()
+
+    run_col, status_col = st.columns([1, 4])
+    run_button = run_col.button("Resolver VRP", type="primary", use_container_width=True)
+
+    # El dataset ya fue cargado en el selector de problema (arriba)
 
     for name, pop in params["new_pops"].items():
         if name in dataset.names:

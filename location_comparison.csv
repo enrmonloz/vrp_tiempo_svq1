@@ -1,0 +1,6 @@
+Método,Latitud,Longitud,Dist. Total Ponderada,Dist. Máxima Pond.,Municipio Más Cercano,Distancia al Municipio (km)
+Gravity Center,37.19189131373994,-5.497682100684521,"275,687,886.0","60,882,006.2",Morón de la Frontera,8.78
+Min Total Distance,37.31426100903209,-5.86466036797965,"256,713,264.5","81,360,417.5",Alcalá de Guadaíra,2.55
+Minimax,36.66555786676941,-5.21089497808839,"370,670,716.2","44,600,394.0",Pruna,34.20
+K Median,37.31426100903209,-5.86466036797965,"256,713,264.5","81,360,417.5",Alcalá de Guadaíra,2.55
+Geographic Center,37.392023910000006,-5.7278265177,"264,278,353.2","77,985,555.7",Viso del Alcor,0.85
