@@ -22,7 +22,7 @@ THIS_DIR = Path(__file__).resolve().parent
 if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
-from src.data_loader import load_dataset
+from src.data_loader import load_dataset, Dataset, DEPOT_NAME, SECONDARY_HUB_NAME
 from src.fleet import FleetConfig, VehicleType
 from src.map_view import build_route_map
 from src.pipeline import PipelineConfig, run_pipeline
@@ -265,6 +265,99 @@ def _section_title(text: str) -> None:
 
 def _go(view: str) -> None:
     st.session_state["view"] = view
+
+
+# ---------------------------------------------------------------------------
+# Serialization helpers (CSV / JSON exports)
+# ---------------------------------------------------------------------------
+def serialize_vrp_routes_csv(pipeline_result) -> bytes:
+    """Serializa rutas VRP + dedicadas a CSV usando pandas y devuelve bytes UTF-8."""
+    rows = []
+    # VRP routes
+    for r_idx, (route, sch) in enumerate(
+        zip(pipeline_result.vrp.routes, pipeline_result.vrp_schedules), start=1
+    ):
+        for stop, stop_sch in zip(route.stops, sch.stops):
+            rows.append(
+                {
+                    "route_type": "vrp",
+                    "route_id": r_idx,
+                    "vehicle_id": route.vehicle_id,
+                    "vehicle_type": route.vehicle_type.name if hasattr(route.vehicle_type, "name") else str(route.vehicle_type),
+                    "node_index": int(stop.node_index),
+                    "node_name": stop.node_name,
+                    "arrival_clock": stop_sch.arrival_clock,
+                    "leave_clock": stop_sch.leave_clock,
+                    "period": stop_sch.period,
+                    "packages": int(stop.packages),
+                    "service_time_min": float(stop.service_time_min),
+                    "route_travel_time_min": float(route.travel_time_min),
+                    "route_service_time_min": float(route.service_time_min),
+                    "route_travel_distance_km": float(route.travel_distance_km),
+                    "route_total_time_min": float(route.total_time_min),
+                }
+            )
+    # Dedicated routes
+    for r_idx, (r, sch) in enumerate(
+        zip(pipeline_result.split.dedicated_routes, pipeline_result.dedicated_schedules), start=1
+    ):
+        for stop_sch in sch.stops:
+            rows.append(
+                {
+                    "route_type": "dedicated",
+                    "route_id": r_idx,
+                    "vehicle_id": None,
+                    "vehicle_type": r.vehicle_type if hasattr(r, "vehicle_type") else "furgoneta",
+                    "node_index": int(r.node_index),
+                    "node_name": r.node_name,
+                    "arrival_clock": stop_sch.arrival_clock,
+                    "leave_clock": stop_sch.leave_clock,
+                    "period": stop_sch.period,
+                    "packages": int(r.packages),
+                    "service_time_min": float(r.service_time_min),
+                    "route_travel_time_min": float(r.travel_time_min),
+                    "route_service_time_min": float(r.service_time_min),
+                    "route_travel_distance_km": float(r.travel_distance_km),
+                    "route_total_time_min": float(r.total_time_min),
+                }
+            )
+
+    df = pd.DataFrame(rows)
+    return df.to_csv(index=False).encode("utf-8")
+
+
+def serialize_vrp_summary_json(pipeline_result) -> bytes:
+    """Serializa un resumen del pipeline a JSON (bytes UTF-8)."""
+    import json
+
+    summary = {
+        "total_routes": int(pipeline_result.total_routes),
+        "vrp_route_count": int(pipeline_result.vrp_route_count),
+        "dedicated_route_count": int(pipeline_result.dedicated_route_count),
+        "total_distance_km": float(pipeline_result.total_distance_km),
+        "total_time_min": float(pipeline_result.total_time_min),
+        "diesel_count": int(pipeline_result.vrp.diesel_count),
+        "electric_count": int(pipeline_result.vrp.electric_count),
+        "total_packages": int(pipeline_result.packages.sum()) if hasattr(pipeline_result, "packages") else None,
+        "objective_value": int(pipeline_result.vrp.objective_value) if getattr(pipeline_result.vrp, "objective_value", None) is not None else None,
+    }
+    return json.dumps(summary, indent=2, ensure_ascii=False).encode("utf-8")
+
+
+def serialize_location_result_csv(location_result) -> bytes:
+    """Serializa un LocationResult a CSV de una sola fila usando pandas."""
+    row = {
+        "method": location_result.method.value if hasattr(location_result.method, "value") else str(location_result.method),
+        "latitude": float(location_result.latitude),
+        "longitude": float(location_result.longitude),
+        "weighted_distance": float(location_result.weighted_distance),
+        "max_weighted_distance": float(location_result.max_weighted_distance),
+        "nearest_municipality": location_result.nearest_municipality,
+        "distance_to_nearest_km": float(location_result.distance_to_nearest_km) if location_result.distance_to_nearest_km is not None else None,
+        "objective_value": float(location_result.objective_value) if location_result.objective_value is not None else None,
+    }
+    df = pd.DataFrame([row])
+    return df.to_csv(index=False).encode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -532,7 +625,16 @@ def view_location_selector(dataset) -> None:
 
     if view_mode == "🎯 Solución Única":
         result = solver.solve(LocationMethod(technique))
+        # Guardar último resultado de localización en sesión para uso en VRP
+        st.session_state["last_location_result"] = result
         render_location_results(dataset, result)
+        # Botón de exportar (desactivado hasta que el usuario lo pulse)
+        st.download_button(
+            "Exportar resultado de localización (CSV)",
+            data=serialize_location_result_csv(result),
+            file_name="location_result.csv",
+            mime="text/csv",
+        )
     else:
         render_comparison_view(dataset, solver)
 
@@ -735,7 +837,16 @@ def main() -> None:
     except Exception as exc:
         st.error(f"Error cargando datos: {exc}")
         st.stop()
-    
+
+    # Selector de centro de reparto (hub)
+    hub_options = [DEPOT_NAME, SECONDARY_HUB_NAME]
+    # Si hay un último resultado de localización, ofrecerlo como opción
+    if "last_location_result" in st.session_state:
+        loc = st.session_state["last_location_result"]
+        hub_options.append(f"Calculated: {loc.method.value}")
+
+    selected_hub = st.selectbox("Centro de reparto (depot):", options=hub_options, index=0)
+
     # Selector del problema a resolver mediante pestañas
     st.divider()
     tab_vrp, tab_localizacion = st.tabs(
@@ -760,11 +871,42 @@ def main() -> None:
                 dataset.poblacion[idx] = int(pop)
 
         state_key = "vrp_result"
+        # Construir dataset con depot seleccionado (si corresponde)
+        dataset_for_run = dataset
+        if selected_hub.startswith("Calculated:") and "last_location_result" in st.session_state:
+            # Usar municipio más cercano a la ubicación calculada como depot
+            loc = st.session_state["last_location_result"]
+            if loc.nearest_municipality in dataset.names:
+                depot_idx = dataset.names.index(loc.nearest_municipality)
+                dataset_for_run = Dataset(
+                    names=dataset.names,
+                    latitudes=dataset.latitudes,
+                    longitudes=dataset.longitudes,
+                    restringe_camion=dataset.restringe_camion,
+                    poblacion=dataset.poblacion,
+                    distance_matrix=dataset.distance_matrix,
+                    time_matrix=dataset.time_matrix,
+                    depot_index=depot_idx,
+                )
+        else:
+            if selected_hub == SECONDARY_HUB_NAME and SECONDARY_HUB_NAME in dataset.names:
+                depot_idx = dataset.names.index(SECONDARY_HUB_NAME)
+                dataset_for_run = Dataset(
+                    names=dataset.names,
+                    latitudes=dataset.latitudes,
+                    longitudes=dataset.longitudes,
+                    restringe_camion=dataset.restringe_camion,
+                    poblacion=dataset.poblacion,
+                    distance_matrix=dataset.distance_matrix,
+                    time_matrix=dataset.time_matrix,
+                    depot_index=depot_idx,
+                )
+
         if run_button or state_key not in st.session_state:
             config = build_pipeline_config(params)
             with st.spinner("Calculando asignacion..."):
                 try:
-                    result = run_pipeline(dataset, config)
+                    result = run_pipeline(dataset_for_run, config)
                 except Exception as exc:
                     st.error(f"No se pudo resolver el VRP: {exc}")
                     st.stop()
@@ -795,6 +937,23 @@ def main() -> None:
             view_stops(result)
         else:
             view_main(result, dataset)
+        # Export buttons (disponibles si hay resultado)
+        if result is not None:
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.download_button(
+                    "Exportar rutas (CSV)",
+                    data=serialize_vrp_routes_csv(result),
+                    file_name="vrp_routes.csv",
+                    mime="text/csv",
+                )
+            with col_b:
+                st.download_button(
+                    "Exportar resumen (JSON)",
+                    data=serialize_vrp_summary_json(result),
+                    file_name="vrp_summary.json",
+                    mime="application/json",
+                )
     
     # Footer informativo
     st.divider()
