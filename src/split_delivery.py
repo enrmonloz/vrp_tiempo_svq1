@@ -192,7 +192,7 @@ def split_oversized_nodes(
     """Divide nodos cuya entrega completa no cabe en una jornada.
 
     Para nodos a los que aplica un ``TrailerConfig`` activo (por defecto los
-    nodos grandes Cadiz/Malaga/Cordoba/Huelva), todas las rutas dedicadas se
+    nodos grandes Cadiz/Malaga/Cordoba/Huelva/Granada), todas las rutas dedicadas se
     hacen con trailer y el residual queda a 0.
 
     Para el resto de nodos, si la entrega completa no cabe en jornada, se

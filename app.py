@@ -22,7 +22,7 @@ THIS_DIR = Path(__file__).resolve().parent
 if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
-from src.data_loader import DEFAULT_NEW_NODE_POPULATIONS, load_dataset
+from src.data_loader import load_dataset
 from src.fleet import FleetConfig, VehicleType
 from src.map_view import build_route_map
 from src.pipeline import PipelineConfig, run_pipeline
@@ -250,11 +250,10 @@ def _format_minutes(minutes: float) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def _cached_dataset(poblacion_path: str, rutas_path: str, xlsx_path: str):
+def _cached_dataset(poblacion_path: str, rutas_path: str):
     return load_dataset(
         poblacion_path=poblacion_path,
         rutas_path=rutas_path,
-        distancias_xlsx_path=xlsx_path,
     )
 
 
@@ -294,18 +293,7 @@ def render_config_panel() -> dict:
                 "Conduccion entre paquetes (min)",
                 min_value=0.0, max_value=30.0, value=1.0, step=0.5,
             )
-            with st.expander("Poblacion de los nuevos nodos"):
-                new_pops = {}
-                pop_cols = st.columns(len(DEFAULT_NEW_NODE_POPULATIONS))
-                for col, (name, default) in zip(pop_cols, DEFAULT_NEW_NODE_POPULATIONS.items()):
-                    new_pops[name] = int(
-                        col.number_input(
-                            f"{name}",
-                            min_value=0, max_value=10_000_000,
-                            value=int(default), step=1_000,
-                            key=f"pop_{name}",
-                        )
-                    )
+            new_pops = {}  # Ya no hay nodos nuevos en el XLSX
 
         # --- Tab: Flota ---
         with tabs[1]:
@@ -337,8 +325,8 @@ def render_config_panel() -> dict:
         # --- Tab: Trailers ---
         with tabs[2]:
             trailer_enabled = st.checkbox(
-                "Usar trailers para nodos grandes (Cadiz, Malaga, Cordoba, Huelva)",
-                value=False,
+                "Usar trailers para nodos grandes (Cadiz, Malaga, Cordoba, Huelva, Granada)",
+                value=True,
             )
             c1, c2 = st.columns(2)
             trailer_capacity = c1.number_input(
@@ -704,7 +692,6 @@ def main() -> None:
         dataset = _cached_dataset(
             str(data_dir / "poblacion.csv"),
             str(data_dir / "rutasDistTiempo.csv"),
-            str(data_dir / "distanciasReales.xlsx"),
         )
     except Exception as exc:
         st.error(f"Error cargando datos: {exc}")

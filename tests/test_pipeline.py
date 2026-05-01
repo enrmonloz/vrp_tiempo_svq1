@@ -38,16 +38,15 @@ def test_dataset_loads() -> None:
     ds = load_dataset(
         poblacion_path=str(DATA_DIR / "poblacion.csv"),
         rutas_path=str(DATA_DIR / "rutasDistTiempo.csv"),
-        distancias_xlsx_path=str(DATA_DIR / "distanciasReales.xlsx"),
     )
-    assert_eq(ds.n_nodes, 121, "Numero total de nodos")
+    assert_eq(ds.n_nodes, 122, "Numero total de nodos")
     assert_eq(ds.names[ds.depot_index], "SVQ1", "Deposito")
-    assert_eq(ds.distance_matrix.shape, (121, 121), "Forma matriz distancia")
-    assert_eq(ds.time_matrix.shape, (121, 121), "Forma matriz tiempo")
-    for new_name in ("Cádiz", "Málaga", "Córdoba", "Huelva"):
-        if new_name not in ds.names:
-            raise AssertionError(f"Falta nodo nuevo: {new_name}")
-    print("  OK Las 4 capitales nuevas estan presentes")
+    assert_eq(ds.distance_matrix.shape, (122, 122), "Forma matriz distancia")
+    assert_eq(ds.time_matrix.shape, (122, 122), "Forma matriz tiempo")
+    for capital_name in ("Cádiz", "Málaga", "Córdoba", "Huelva", "Granada"):
+        if capital_name not in ds.names:
+            raise AssertionError(f"Falta capital: {capital_name}")
+    print("  OK Las capitales estan presentes")
 
 
 def test_demand_and_split() -> None:
@@ -55,7 +54,6 @@ def test_demand_and_split() -> None:
     ds = load_dataset(
         poblacion_path=str(DATA_DIR / "poblacion.csv"),
         rutas_path=str(DATA_DIR / "rutasDistTiempo.csv"),
-        distancias_xlsx_path=str(DATA_DIR / "distanciasReales.xlsx"),
     )
     cfg = DemandConfig(
         market_penetration=0.001,

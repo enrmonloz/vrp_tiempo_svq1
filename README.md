@@ -19,11 +19,10 @@ vrp_tiempo_svq1/
 ├── requirements.txt
 ├── setup.bat / run.bat          # Scripts Windows para venv y arranque
 ├── data/
-│   ├── poblacion.csv            # Municipios y poblacion (IDs 0..116)
-│   ├── rutasDistTiempo.csv      # Matriz OD km y minutos (117 nodos)
-│   └── distanciasReales.xlsx    # Matriz 121x121 km con 4 capitales nuevas
+│   ├── poblacion.csv            # Municipios y poblacion (122 nodos: SVQ1, DQA4, 120 municipios/provincias)
+│   └── rutasDistTiempo.csv      # Matriz OD km y minutos (122x122 nodos, sincronizada con poblacion.csv)
 ├── src/
-│   ├── data_loader.py           # Carga, validacion y union de las 3 fuentes
+│   ├── data_loader.py           # Carga y validacion de los 2 CSVs sincronizados
 │   ├── demand.py                # Calculo de paquetes y tiempo de servicio
 │   ├── split_delivery.py        # Preprocesado de nodos que no caben en jornada
 │   ├── fleet.py                 # FleetConfig: cotas y tipos diesel/electrica

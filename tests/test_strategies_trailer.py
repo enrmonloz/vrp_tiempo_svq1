@@ -31,7 +31,6 @@ def _load_dataset_once():
     return load_dataset(
         poblacion_path=str(DATA_DIR / "poblacion.csv"),
         rutas_path=str(DATA_DIR / "rutasDistTiempo.csv"),
-        distancias_xlsx_path=str(DATA_DIR / "distanciasReales.xlsx"),
     )
 
 

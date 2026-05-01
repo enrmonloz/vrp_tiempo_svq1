@@ -25,7 +25,7 @@ from typing import Tuple
 
 
 # Nombres exactos (con tilde) tal como aparecen en data/distanciasReales.xlsx.
-DEFAULT_BIG_NODES: Tuple[str, ...] = ("Cádiz", "Málaga", "Córdoba", "Huelva")
+DEFAULT_BIG_NODES: Tuple[str, ...] = ("Cádiz", "Málaga", "Córdoba", "Huelva", "Granada")
 
 
 @dataclass(frozen=True)
